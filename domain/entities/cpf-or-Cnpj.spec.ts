@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { CpfOrCnpj } from './cpfOrCnpj'
+import { CpfOrCnpj } from './cpf-or-cnpj'
 
 describe('CpfOrCnpj', () => {
   // CPFs válidos
