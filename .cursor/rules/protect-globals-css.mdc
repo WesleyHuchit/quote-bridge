@@ -1,0 +1,11 @@
+---
+description: Protege o arquivo global de estilos contra alteracoes nao solicitadas
+globs: app/globals.css
+alwaysApply: false
+---
+
+# Protecao de `app/globals.css`
+
+Nao execute nenhuma alteracao em `app/globals.css` a menos que o usuario peca expressamente para modificar esse arquivo.
+
+Se uma tarefa parecer exigir mudancas globais de estilo, confirme primeiro com o usuario antes de editar `app/globals.css`.
