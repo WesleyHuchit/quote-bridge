@@ -10,6 +10,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import type { FieldType, FilledBy } from "@/types/field"
 
 type CreatedField = {
@@ -216,24 +223,29 @@ export default function CreateFieldPage() {
               <CardContent className="grid gap-5 px-6">
                 <label className="grid gap-2 text-sm font-medium">
                   Line
-                  <select
+                  <Select
                     name="lineId"
                     required
                     defaultValue=""
                     disabled={lines.length === 0}
-                    className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-ring focus:ring-3 focus:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <option value="" disabled>
-                      {lines.length === 0
-                        ? "Crie uma line primeiro"
-                        : "Selecione uma line"}
-                    </option>
-                    {lines.map((line) => (
-                      <option key={line.id} value={line.id}>
-                        {line.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="h-10 w-full bg-background">
+                      <SelectValue
+                        placeholder={
+                          lines.length === 0
+                            ? "Crie uma line primeiro"
+                            : "Selecione uma line"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {lines.map((line) => (
+                        <SelectItem key={line.id} value={String(line.id)}>
+                          {line.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </label>
 
                 <label className="grid gap-2 text-sm font-medium">
@@ -250,37 +262,39 @@ export default function CreateFieldPage() {
 
                 <label className="grid gap-2 text-sm font-medium">
                   Tipo
-                  <select
+                  <Select
                     name="type"
                     required
                     defaultValue=""
                     disabled={lines.length === 0}
-                    className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-ring focus:ring-3 focus:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <option value="" disabled>
-                      Selecione um tipo
-                    </option>
-                    <option value="STRING">Texto</option>
-                    <option value="NUMBER">Numero</option>
-                    <option value="DATE">Data</option>
-                  </select>
+                    <SelectTrigger className="h-10 w-full bg-background">
+                      <SelectValue placeholder="Selecione um tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="STRING">Texto</SelectItem>
+                      <SelectItem value="NUMBER">Numero</SelectItem>
+                      <SelectItem value="DATE">Data</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </label>
 
                 <label className="grid gap-2 text-sm font-medium">
                   Preenchido por
-                  <select
+                  <Select
                     name="filledBy"
                     required
                     defaultValue=""
                     disabled={lines.length === 0}
-                    className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-ring focus:ring-3 focus:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <option value="" disabled>
-                      Selecione quem preenche
-                    </option>
-                    <option value="BUYER">Comprador</option>
-                    <option value="SUPPLIER">Fornecedor</option>
-                  </select>
+                    <SelectTrigger className="h-10 w-full bg-background">
+                      <SelectValue placeholder="Selecione quem preenche" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="BUYER">Comprador</SelectItem>
+                      <SelectItem value="SUPPLIER">Fornecedor</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </label>
 
                 <div className="flex flex-col gap-3 sm:flex-row">
