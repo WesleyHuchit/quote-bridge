@@ -1,5 +1,6 @@
 import { AggregateRoot } from "@/back-end/core/entities/aggregate-root"
 import { UniqueEntityId } from "@/back-end/core/entities/unique-entity-id"
+import { LineReference } from "./value-objects/line-reference"
 
 interface LineProps {
     name: string
@@ -25,6 +26,16 @@ export class Line extends AggregateRoot<LineProps> {
 
   get updatedAt() {
     return this.props.updatedAt
+  }
+
+  toReference() {
+    return LineReference.create({
+      id: this.id,
+      name: this.name,
+      fieldIds: this.fieldIds,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    });
   }
 
   static create(
