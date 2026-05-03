@@ -19,24 +19,41 @@ import {
 } from "@/components/ui/select"
 import type { FieldType, FilledBy } from "@/types/field"
 
-type CreatedField = {
-  id: number
+/** Agrupa field definitions — corresponde ao uso de `lineId` no domínio. */
+type LineGroup = {
+  id: string
+  name: string
+}
+
+/** Espelha `FieldDefinition` (sem persistência). */
+type FieldDefinitionRow = {
+  id: string
   name: string
   type: FieldType
-  lineId: number
+  lineId: string
   filledBy: FilledBy
 }
 
-type CreatedLine = {
-  id: number
+/** Espelha `EntityDefinition`. */
+type EntityDefinitionRow = {
+  id: string
   name: string
+  fieldDefinitionIds: string[]
 }
 
-type CreatedItem = {
-  id: number
+/** Espelha `Item`. */
+type ItemRow = {
+  id: string
   data: string
-  fieldId: number
-  lineId: number
+  fieldId: string
+  lineId: string
+}
+
+/** Espelha `DynamicEntity` com itens aninhados. */
+type DynamicEntityRow = {
+  id: string
+  entityDefinitionId: string
+  items: ItemRow[]
 }
 
 const fieldTypeLabels: Record<FieldType, string> = {
@@ -56,10 +73,21 @@ function isFilledBy(value: FormDataEntryValue | null): value is FilledBy {
   return filledByOptions.includes(value as FilledBy)
 }
 
+function newId() {
+  return crypto.randomUUID()
+}
+
 export default function CreateFieldPage() {
-  const [lines, setLines] = useState<CreatedLine[]>([])
-  const [fields, setFields] = useState<CreatedField[]>([])
-  const [items, setItems] = useState<CreatedItem[]>([])
+  const [lines, setLines] = useState<LineGroup[]>([])
+  const [fieldDefinitions, setFieldDefinitions] = useState<FieldDefinitionRow[]>(
+    [],
+  )
+  const [entityDefinitions, setEntityDefinitions] = useState<
+    EntityDefinitionRow[]
+  >([])
+  const [dynamicEntities, setDynamicEntities] = useState<DynamicEntityRow[]>(
+    [],
+  )
 
   function handleLineSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -72,10 +100,10 @@ export default function CreateFieldPage() {
       return
     }
 
-    setLines((currentLines) => [
-      ...currentLines,
+    setLines((current) => [
+      ...current,
       {
-        id: Date.now(),
+        id: newId(),
         name,
       },
     ])
@@ -83,7 +111,7 @@ export default function CreateFieldPage() {
     form.reset()
   }
 
-  function handleFieldSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleFieldDefinitionSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     const form = event.currentTarget
@@ -91,7 +119,7 @@ export default function CreateFieldPage() {
     const name = String(formData.get("name") ?? "").trim()
     const type = formData.get("type") as FieldType | null
     const filledBy = formData.get("filledBy")
-    const lineId = Number(formData.get("lineId"))
+    const lineId = String(formData.get("lineId") ?? "")
 
     if (
       !name ||
@@ -102,14 +130,65 @@ export default function CreateFieldPage() {
       return
     }
 
-    setFields((currentFields) => [
-      ...currentFields,
+    setFieldDefinitions((current) => [
+      ...current,
       {
-        id: Date.now(),
+        id: newId(),
         name,
         type,
         lineId,
         filledBy,
+      },
+    ])
+
+    form.reset()
+  }
+
+  function handleEntityDefinitionSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const form = event.currentTarget
+    const formData = new FormData(form)
+    const name = String(formData.get("name") ?? "").trim()
+    const selected = formData.getAll("fieldDefinitionIds") as string[]
+
+    const fieldDefinitionIds = selected.filter((id) =>
+      fieldDefinitions.some((f) => f.id === id),
+    )
+
+    if (!name || fieldDefinitionIds.length === 0) {
+      return
+    }
+
+    setEntityDefinitions((current) => [
+      ...current,
+      {
+        id: newId(),
+        name,
+        fieldDefinitionIds,
+      },
+    ])
+
+    form.reset()
+  }
+
+  function handleDynamicEntitySubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const form = event.currentTarget
+    const formData = new FormData(form)
+    const entityDefinitionId = String(formData.get("entityDefinitionId") ?? "")
+
+    if (!entityDefinitions.some((e) => e.id === entityDefinitionId)) {
+      return
+    }
+
+    setDynamicEntities((current) => [
+      ...current,
+      {
+        id: newId(),
+        entityDefinitionId,
+        items: [],
       },
     ])
 
@@ -122,22 +201,37 @@ export default function CreateFieldPage() {
     const form = event.currentTarget
     const formData = new FormData(form)
     const data = String(formData.get("data") ?? "").trim()
-    const fieldId = Number(formData.get("fieldId"))
-    const field = fields.find((currentField) => currentField.id === fieldId)
+    const fieldId = String(formData.get("fieldId") ?? "")
+    const dynamicEntityId = String(formData.get("dynamicEntityId") ?? "")
 
-    if (!data || !field) {
+    const dynamicEntity = dynamicEntities.find((d) => d.id === dynamicEntityId)
+    const entityDefinition = entityDefinitions.find(
+      (e) => e.id === dynamicEntity?.entityDefinitionId,
+    )
+    const field = fieldDefinitions.find((f) => f.id === fieldId)
+
+    if (
+      !data ||
+      !dynamicEntity ||
+      !entityDefinition ||
+      !field ||
+      !entityDefinition.fieldDefinitionIds.includes(fieldId)
+    ) {
       return
     }
 
-    setItems((currentItems) => [
-      ...currentItems,
-      {
-        id: Date.now(),
-        data,
-        fieldId,
-        lineId: field.lineId,
-      },
-    ])
+    const item: ItemRow = {
+      id: newId(),
+      data,
+      fieldId,
+      lineId: field.lineId,
+    }
+
+    setDynamicEntities((current) =>
+      current.map((d) =>
+        d.id === dynamicEntityId ? { ...d, items: [...d.items, item] } : d,
+      ),
+    )
 
     form.reset()
   }
@@ -152,38 +246,44 @@ export default function CreateFieldPage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
-                Criar lines, fields e items
+                Definições de campo e entidades dinâmicas
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Cadastre a line, associe os fields e depois adicione os items
-                usados para montar cotacoes com dados padronizados.
+                Cadastre linhas (agrupamento), field definitions, uma entity
+                definition com os campos escolhidos, instancie dynamic entities e
+                preencha items alinhados ao modelo de domínio.
               </p>
             </div>
             <div className="rounded-full border border-border bg-card px-4 py-2 text-sm text-muted-foreground">
-              {lines.length} line{lines.length === 1 ? "" : "s"} e{" "}
-              {fields.length} field{fields.length === 1 ? "" : "s"} e{" "}
-              {items.length} item{items.length === 1 ? "" : "s"} nesta sessao
+              {lines.length} linha{lines.length === 1 ? "" : "s"} ·{" "}
+              {fieldDefinitions.length} campo
+              {fieldDefinitions.length === 1 ? "" : "s"} ·{" "}
+              {entityDefinitions.length} def. de entidade ·{" "}
+              {dynamicEntities.length} instância
+              {dynamicEntities.length === 1 ? "" : "s"}
             </div>
           </div>
         </header>
 
         <section className="">
-          <Card className="flex flex-row shadow-sm w-full">
+          <Card className="flex w-full flex-row shadow-sm">
             <div className="w-full">
               <form onSubmit={handleLineSubmit}>
                 <CardHeader className="gap-2 px-6">
                   <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">
-                    Primeiro setor
+                    1 · Agrupamento (lineId)
                   </p>
-                  <CardTitle className="text-xl">Criar line</CardTitle>
+                  <CardTitle className="text-xl">Criar linha</CardTitle>
                   <CardDescription>
-                    Informe o nome da line que vai agrupar os fields relacionados.
+                    Nome do agrupamento usado como referência em{" "}
+                    <code className="text-xs">FieldDefinition.lineId</code> e{" "}
+                    <code className="text-xs">Item.lineId</code>.
                   </CardDescription>
                 </CardHeader>
 
                 <CardContent className="grid gap-5 px-6">
                   <label className="grid gap-2 text-sm font-medium">
-                    Nome da line
+                    Nome da linha
                     <input
                       name="name"
                       type="text"
@@ -195,7 +295,7 @@ export default function CreateFieldPage() {
 
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <Button type="submit" size="lg" className="sm:w-fit">
-                      Criar line
+                      Criar linha
                     </Button>
                     <Button
                       type="reset"
@@ -211,16 +311,16 @@ export default function CreateFieldPage() {
             </div>
 
             <CardContent className="w-full">
-              <h3 className="text-sm font-semibold">Lines criadas</h3>
+              <h3 className="text-sm font-semibold">Linhas criadas</h3>
               <div className="mt-4 flex flex-col gap-3">
                 {lines.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-border bg-background/60 p-6 text-center text-sm text-muted-foreground">
-                    Nenhuma line criada ainda.
+                    Nenhuma linha ainda.
                   </div>
                 ) : (
                   lines.map((line) => {
-                    const lineFieldsCount = fields.filter(
-                      (field) => field.lineId === line.id
+                    const count = fieldDefinitions.filter(
+                      (f) => f.lineId === line.id,
                     ).length
 
                     return (
@@ -228,8 +328,7 @@ export default function CreateFieldPage() {
                         <CardContent>
                           <h4 className="font-medium">{line.name}</h4>
                           <p className="mt-1 text-sm text-muted-foreground">
-                            {lineFieldsCount} field
-                            {lineFieldsCount === 1 ? "" : "s"}
+                            {count} field definition{count === 1 ? "" : "s"}
                           </p>
                         </CardContent>
                       </Card>
@@ -243,21 +342,20 @@ export default function CreateFieldPage() {
 
         <section>
           <Card className="shadow-sm">
-            <form onSubmit={handleFieldSubmit}>
+            <form onSubmit={handleFieldDefinitionSubmit}>
               <CardHeader className="gap-2 px-6">
                 <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">
-                  Segundo setor
+                  2 · Field definition
                 </p>
-                <CardTitle className="text-xl">Criar field</CardTitle>
+                <CardTitle className="text-xl">Criar field definition</CardTitle>
                 <CardDescription>
-                  Informe um nome claro, o tipo de dado esperado e a line desse
-                  field.
+                  Nome, tipo, preenchido por e linha ({`lineId`}).
                 </CardDescription>
               </CardHeader>
 
               <CardContent className="grid gap-5 px-6">
                 <label className="grid gap-2 text-sm font-medium">
-                  Line
+                  Linha
                   <Select
                     name="lineId"
                     required
@@ -268,14 +366,14 @@ export default function CreateFieldPage() {
                       <SelectValue
                         placeholder={
                           lines.length === 0
-                            ? "Crie uma line primeiro"
-                            : "Selecione uma line"
+                            ? "Crie uma linha primeiro"
+                            : "Selecione uma linha"
                         }
                       />
                     </SelectTrigger>
                     <SelectContent>
                       {lines.map((line) => (
-                        <SelectItem key={line.id} value={String(line.id)}>
+                        <SelectItem key={line.id} value={line.id}>
                           {line.name}
                         </SelectItem>
                       ))}
@@ -284,7 +382,7 @@ export default function CreateFieldPage() {
                 </label>
 
                 <label className="grid gap-2 text-sm font-medium">
-                  Nome do field
+                  Nome do campo
                   <input
                     name="name"
                     type="text"
@@ -339,7 +437,7 @@ export default function CreateFieldPage() {
                     className="sm:w-fit"
                     disabled={lines.length === 0}
                   >
-                    Criar field
+                    Criar field definition
                   </Button>
                   <Button
                     type="reset"
@@ -355,18 +453,18 @@ export default function CreateFieldPage() {
             </form>
 
             <CardContent className="border-t border-border px-6 pt-6">
-              <h3 className="text-sm font-semibold">Fields criados</h3>
+              <h3 className="text-sm font-semibold">Field definitions</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                A lista abaixo mostra os fields adicionados nesta tela.
+                Campos cadastrados nesta sessão.
               </p>
 
               <div className="mt-4 flex flex-col gap-3">
-                {fields.length === 0 ? (
+                {fieldDefinitions.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-border bg-background/60 p-6 text-center text-sm text-muted-foreground">
-                    Nenhum field criado ainda.
+                    Nenhum field definition ainda.
                   </div>
                 ) : (
-                  fields.map((field) => (
+                  fieldDefinitions.map((field) => (
                     <Card key={field.id} size="sm">
                       <CardContent>
                         <div className="flex items-start justify-between gap-4">
@@ -380,10 +478,8 @@ export default function CreateFieldPage() {
                             </p>
                           </div>
                           <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-                            {
-                              lines.find((line) => line.id === field.lineId)
-                                ?.name
-                            }
+                            {lines.find((line) => line.id === field.lineId)
+                              ?.name ?? "—"}
                           </span>
                         </div>
                       </CardContent>
@@ -397,79 +493,81 @@ export default function CreateFieldPage() {
 
         <section>
           <Card className="shadow-sm">
-            <form onSubmit={handleItemSubmit}>
+            <form onSubmit={handleEntityDefinitionSubmit}>
               <CardHeader className="gap-2 px-6">
                 <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">
-                  Terceiro setor
+                  3 · Entity definition
                 </p>
-                <CardTitle className="text-xl">Criar item</CardTitle>
+                <CardTitle className="text-xl">Criar entity definition</CardTitle>
                 <CardDescription>
-                  Selecione um field e informe o dado que sera associado a ele.
+                  Nome do tipo de cotação e conjunto de{" "}
+                  <code className="text-xs">fieldDefinitionIds</code>.
                 </CardDescription>
               </CardHeader>
 
               <CardContent className="grid gap-5 px-6">
                 <label className="grid gap-2 text-sm font-medium">
-                  Field
-                  <Select
-                    name="fieldId"
-                    required
-                    defaultValue=""
-                    disabled={fields.length === 0}
-                  >
-                    <SelectTrigger className="h-10 w-full bg-background">
-                      <SelectValue
-                        placeholder={
-                          fields.length === 0
-                            ? "Crie um field primeiro"
-                            : "Selecione um field"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {fields.map((field) => {
-                        const line = lines.find(
-                          (currentLine) => currentLine.id === field.lineId
-                        )
-
-                        return (
-                          <SelectItem key={field.id} value={String(field.id)}>
-                            {field.name}
-                            {line ? ` - ${line.name}` : ""}
-                          </SelectItem>
-                        )
-                      })}
-                    </SelectContent>
-                  </Select>
-                </label>
-
-                <label className="grid gap-2 text-sm font-medium">
-                  Dado do item
+                  Nome da entidade (ex.: cotação de peça)
                   <input
-                    name="data"
+                    name="name"
                     type="text"
                     required
-                    placeholder="Ex: Joao da Silva"
-                    disabled={fields.length === 0}
+                    placeholder="Ex: Cotação de peça"
+                    disabled={fieldDefinitions.length === 0}
                     className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-ring focus:ring-3 focus:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60"
                   />
                 </label>
+
+                <fieldset
+                  className="grid gap-2 text-sm font-medium"
+                  disabled={fieldDefinitions.length === 0}
+                >
+                  <legend className="mb-2">Field definitions incluídos</legend>
+                  {fieldDefinitions.length === 0 ? (
+                    <p className="text-sm font-normal text-muted-foreground">
+                      Crie field definitions antes.
+                    </p>
+                  ) : (
+                    <ul className="grid max-h-48 gap-2 overflow-y-auto rounded-lg border border-border p-3">
+                      {fieldDefinitions.map((f) => (
+                        <li key={f.id} className="flex items-center gap-2">
+                          <input
+                            id={`fd-${f.id}`}
+                            type="checkbox"
+                            name="fieldDefinitionIds"
+                            value={f.id}
+                            className="size-4 rounded border-input"
+                          />
+                          <label
+                            htmlFor={`fd-${f.id}`}
+                            className="font-normal leading-tight"
+                          >
+                            {f.name}{" "}
+                            <span className="text-muted-foreground">
+                              ({fieldTypeLabels[f.type]})
+                            </span>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </fieldset>
 
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Button
                     type="submit"
                     size="lg"
                     className="sm:w-fit"
-                    disabled={fields.length === 0}
+                    disabled={fieldDefinitions.length === 0}
                   >
-                    Criar item
+                    Criar entity definition
                   </Button>
                   <Button
                     type="reset"
                     size="lg"
                     variant="outline"
                     className="sm:w-fit"
-                    disabled={fields.length === 0}
+                    disabled={fieldDefinitions.length === 0}
                   >
                     Limpar
                   </Button>
@@ -478,39 +576,128 @@ export default function CreateFieldPage() {
             </form>
 
             <CardContent className="border-t border-border px-6 pt-6">
-              <h3 className="text-sm font-semibold">Items criados</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                A lista abaixo mostra os items adicionados nesta tela.
-              </p>
-
+              <h3 className="text-sm font-semibold">Entity definitions</h3>
               <div className="mt-4 flex flex-col gap-3">
-                {items.length === 0 ? (
+                {entityDefinitions.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-border bg-background/60 p-6 text-center text-sm text-muted-foreground">
-                    Nenhum item criado ainda.
+                    Nenhuma entity definition ainda.
                   </div>
                 ) : (
-                  items.map((item) => {
-                    const field = fields.find(
-                      (currentField) => currentField.id === item.fieldId
-                    )
-                    const line = lines.find(
-                      (currentLine) => currentLine.id === item.lineId
-                    )
+                  entityDefinitions.map((entity) => (
+                    <Card key={entity.id} size="sm">
+                      <CardContent>
+                        <h4 className="font-medium">{entity.name}</h4>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          {entity.fieldDefinitionIds.length} campo
+                          {entity.fieldDefinitionIds.length === 1 ? "" : "s"}
+                        </p>
+                        <ul className="mt-2 list-inside list-disc text-sm text-muted-foreground">
+                          {entity.fieldDefinitionIds.map((fid) => {
+                            const f = fieldDefinitions.find((x) => x.id === fid)
+                            return <li key={fid}>{f?.name ?? fid}</li>
+                          })}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
 
+        <section>
+          <Card className="shadow-sm">
+            <form onSubmit={handleDynamicEntitySubmit}>
+              <CardHeader className="gap-2 px-6">
+                <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">
+                  4 · Dynamic entity
+                </p>
+                <CardTitle className="text-xl">Nova instância</CardTitle>
+                <CardDescription>
+                  Cria uma instância com{" "}
+                  <code className="text-xs">entityDefinitionId</code> e lista de{" "}
+                  <code className="text-xs">items</code> (preencha no passo 5).
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="grid gap-5 px-6">
+                <label className="grid gap-2 text-sm font-medium">
+                  Entity definition
+                  <Select
+                    name="entityDefinitionId"
+                    required
+                    defaultValue=""
+                    disabled={entityDefinitions.length === 0}
+                  >
+                    <SelectTrigger className="h-10 w-full bg-background">
+                      <SelectValue
+                        placeholder={
+                          entityDefinitions.length === 0
+                            ? "Crie uma entity definition primeiro"
+                            : "Selecione o modelo"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {entityDefinitions.map((e) => (
+                        <SelectItem key={e.id} value={e.id}>
+                          {e.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="sm:w-fit"
+                    disabled={entityDefinitions.length === 0}
+                  >
+                    Criar dynamic entity
+                  </Button>
+                  <Button
+                    type="reset"
+                    size="lg"
+                    variant="outline"
+                    className="sm:w-fit"
+                    disabled={entityDefinitions.length === 0}
+                  >
+                    Limpar
+                  </Button>
+                </div>
+              </CardContent>
+            </form>
+
+            <CardContent className="border-t border-border px-6 pt-6">
+              <h3 className="text-sm font-semibold">Instâncias</h3>
+              <div className="mt-4 flex flex-col gap-3">
+                {dynamicEntities.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border bg-background/60 p-6 text-center text-sm text-muted-foreground">
+                    Nenhuma instância ainda.
+                  </div>
+                ) : (
+                  dynamicEntities.map((d) => {
+                    const model = entityDefinitions.find(
+                      (e) => e.id === d.entityDefinitionId,
+                    )
                     return (
-                      <Card key={item.id} size="sm">
+                      <Card key={d.id} size="sm">
                         <CardContent>
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <h4 className="font-medium">{item.data}</h4>
-                              <p className="mt-1 text-sm text-muted-foreground">
-                                {field?.name ?? "Field removido"}
-                              </p>
-                            </div>
-                            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-                              {line?.name ?? "Line removida"}
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-medium">
+                              {model?.name ?? "Modelo removido"}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              id: {d.id.slice(0, 8)}…
                             </span>
                           </div>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {d.items.length} item
+                            {d.items.length === 1 ? "" : "s"}
+                          </p>
                         </CardContent>
                       </Card>
                     )
@@ -520,7 +707,233 @@ export default function CreateFieldPage() {
             </CardContent>
           </Card>
         </section>
+
+        <section>
+          <Card className="shadow-sm">
+            <form onSubmit={handleItemSubmit}>
+              <CardHeader className="gap-2 px-6">
+                <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">
+                  5 · Items
+                </p>
+                <CardTitle className="text-xl">Adicionar item</CardTitle>
+                <CardDescription>
+                  Item com <code className="text-xs">fieldId</code> e{" "}
+                  <code className="text-xs">lineId</code> derivado do field
+                  definition; só campos da entity definition da instância.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="grid gap-5 px-6">
+                <DynamicEntityItemFields
+                  dynamicEntities={dynamicEntities}
+                  entityDefinitions={entityDefinitions}
+                  fieldDefinitions={fieldDefinitions}
+                />
+
+                <label className="grid gap-2 text-sm font-medium">
+                  Valor (data)
+                  <input
+                    name="data"
+                    type="text"
+                    required
+                    placeholder="Ex: João da Silva"
+                    disabled={dynamicEntities.length === 0}
+                    className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-ring focus:ring-3 focus:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60"
+                  />
+                </label>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="sm:w-fit"
+                    disabled={dynamicEntities.length === 0}
+                  >
+                    Adicionar item
+                  </Button>
+                  <Button
+                    type="reset"
+                    size="lg"
+                    variant="outline"
+                    className="sm:w-fit"
+                    disabled={dynamicEntities.length === 0}
+                  >
+                    Limpar
+                  </Button>
+                </div>
+              </CardContent>
+            </form>
+
+            <CardContent className="border-t border-border px-6 pt-6">
+              <h3 className="text-sm font-semibold">Items por instância</h3>
+              <div className="mt-4 flex flex-col gap-4">
+                {dynamicEntities.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border bg-background/60 p-6 text-center text-sm text-muted-foreground">
+                    Nenhum item ainda.
+                  </div>
+                ) : (
+                  dynamicEntities.map((d) => {
+                    const model = entityDefinitions.find(
+                      (e) => e.id === d.entityDefinitionId,
+                    )
+                    return (
+                      <div key={d.id}>
+                        <h4 className="text-sm font-semibold">
+                          {model?.name ?? "Modelo"} · {d.items.length} item
+                          {d.items.length === 1 ? "" : "s"}
+                        </h4>
+                        <div className="mt-2 flex flex-col gap-2">
+                          {d.items.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">
+                              Sem items nesta instância.
+                            </p>
+                          ) : (
+                            d.items.map((item) => {
+                              const field = fieldDefinitions.find(
+                                (f) => f.id === item.fieldId,
+                              )
+                              const line = lines.find(
+                                (l) => l.id === item.lineId,
+                              )
+                              return (
+                                <Card key={item.id} size="sm">
+                                  <CardContent>
+                                    <div className="flex items-start justify-between gap-4">
+                                      <div>
+                                        <p className="font-medium">
+                                          {item.data}
+                                        </p>
+                                        <p className="mt-1 text-sm text-muted-foreground">
+                                          {field?.name ?? "Campo removido"}
+                                        </p>
+                                      </div>
+                                      <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                                        {line?.name ?? "Linha"}
+                                      </span>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              )
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
       </div>
     </main>
+  )
+}
+
+function DynamicEntityItemFields({
+  dynamicEntities,
+  entityDefinitions,
+  fieldDefinitions,
+}: {
+  dynamicEntities: DynamicEntityRow[]
+  entityDefinitions: EntityDefinitionRow[]
+  fieldDefinitions: FieldDefinitionRow[]
+}) {
+  const [dynamicEntityId, setDynamicEntityId] = useState("")
+  const [fieldId, setFieldId] = useState("")
+
+  const safeDynamicEntityId =
+    dynamicEntityId &&
+    dynamicEntities.some((d) => d.id === dynamicEntityId)
+      ? dynamicEntityId
+      : ""
+
+  const entityDefinition = (() => {
+    const d = dynamicEntities.find((x) => x.id === safeDynamicEntityId)
+    if (!d) {
+      return undefined
+    }
+    return entityDefinitions.find((e) => e.id === d.entityDefinitionId)
+  })()
+
+  const allowedFields = entityDefinition
+    ? fieldDefinitions.filter((f) =>
+        entityDefinition.fieldDefinitionIds.includes(f.id),
+      )
+    : []
+
+  const safeFieldId =
+    fieldId && allowedFields.some((f) => f.id === fieldId) ? fieldId : ""
+
+  return (
+    <>
+      <input type="hidden" name="dynamicEntityId" value={safeDynamicEntityId} />
+      <input type="hidden" name="fieldId" value={safeFieldId} />
+
+      <label className="grid gap-2 text-sm font-medium">
+        Dynamic entity
+        <Select
+          required
+          value={safeDynamicEntityId || undefined}
+          onValueChange={(id) => {
+            setDynamicEntityId(id)
+            setFieldId("")
+          }}
+          disabled={dynamicEntities.length === 0}
+        >
+          <SelectTrigger className="h-10 w-full bg-background">
+            <SelectValue
+              placeholder={
+                dynamicEntities.length === 0
+                  ? "Crie uma instância primeiro"
+                  : "Selecione a instância"
+              }
+            />
+          </SelectTrigger>
+          <SelectContent>
+            {dynamicEntities.map((d, index) => {
+              const model = entityDefinitions.find(
+                (e) => e.id === d.entityDefinitionId,
+              )
+              return (
+                <SelectItem key={d.id} value={d.id}>
+                  {model?.name ?? "Modelo"} · #{index + 1}
+                </SelectItem>
+              )
+            })}
+          </SelectContent>
+        </Select>
+      </label>
+
+      <label className="grid gap-2 text-sm font-medium">
+        Field definition
+        <Select
+          key={safeDynamicEntityId}
+          required
+          value={safeFieldId || undefined}
+          onValueChange={setFieldId}
+          disabled={allowedFields.length === 0}
+        >
+          <SelectTrigger className="h-10 w-full bg-background">
+            <SelectValue
+              placeholder={
+                allowedFields.length === 0
+                  ? safeDynamicEntityId
+                    ? "Nenhum campo neste modelo"
+                    : "Escolha a instância acima"
+                  : "Selecione um campo"
+              }
+            />
+          </SelectTrigger>
+          <SelectContent>
+            {allowedFields.map((field) => (
+              <SelectItem key={field.id} value={field.id}>
+                {field.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </label>
+    </>
   )
 }

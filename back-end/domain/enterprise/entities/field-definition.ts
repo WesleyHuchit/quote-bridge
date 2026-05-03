@@ -1,6 +1,5 @@
 import { AggregateRoot } from "@/back-end/core/entities/aggregate-root"
 import { UniqueEntityId } from "@/back-end/core/entities/unique-entity-id"
-import { FieldReference } from "./value-objects/field-reference"
 
 export enum FieldType {
   STRING = "STRING",
@@ -13,7 +12,7 @@ export enum FilledBy {
   SUPPLIER = "SUPPLIER"
 }
 
-interface FieldProps {
+interface FieldDefinitionProps {
   name: string
   type: FieldType
   lineId: UniqueEntityId
@@ -22,7 +21,7 @@ interface FieldProps {
   updatedAt: Date
 }
 
-export class Field extends AggregateRoot<FieldProps> {
+export class FieldDefinition extends AggregateRoot<FieldDefinitionProps> {
 
   get name() {
     return this.props.name
@@ -48,23 +47,11 @@ export class Field extends AggregateRoot<FieldProps> {
     return this.props.updatedAt
   }
 
-  toReference() {
-    return FieldReference.create({
-      id: this.id,
-      name: this.name,
-      type: this.type,
-      lineId: this.lineId,
-      filledBy: this.filledBy,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt,
-    });
-  }
-
   static create(
-    props: FieldProps,
+    props: FieldDefinitionProps,
     id?: UniqueEntityId,
   ) {
-    const field = new Field(
+    const field = new FieldDefinition(
       {
         ...props,
       },

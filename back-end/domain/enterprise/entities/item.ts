@@ -1,29 +1,27 @@
-import { AggregateRoot } from "@/back-end/core/entities/aggregate-root"
 import { UniqueEntityId } from "@/back-end/core/entities/unique-entity-id"
-import { LineReference } from "./value-objects/line-reference"
-import { FieldReference } from "./value-objects/field-reference"
+import { Entity } from "@/back-end/core/entities/entity"
 
 interface ItemProps {
-    data: string
-    field: FieldReference
-    line: LineReference
+    data: string | number | Date
+    fieldId: UniqueEntityId
+    lineId: UniqueEntityId
 
     createdAt: Date
     updatedAt: Date
 }
 
-export class Item extends AggregateRoot<ItemProps> {
+export class Item extends Entity<ItemProps> {
 
   get data() {
     return this.props.data
   }
 
-  get field() {
-    return this.props.field
+  get fieldId() {
+    return this.props.fieldId
   }
 
-  get line() {
-    return this.props.line
+  get lineId() {
+    return this.props.lineId
   }
  
   get createdAt() {
